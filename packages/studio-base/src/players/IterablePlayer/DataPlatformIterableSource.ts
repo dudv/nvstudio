@@ -168,23 +168,29 @@ export class DataPlatformIterableSource implements IIterableSource {
     }
 
     let currentStart = args.start ?? this._start;
+    const end = args.end ?? this._end;
 
     let currentEnd = clampTime(
       add(currentStart, fromSec(this._requestDurationSecs)),
       this._start,
-      this._end,
+      end,
     );
 
     let stream: AsyncGenerator<MessageEvent<unknown>[]> | undefined;
 
     for (;;) {
       if (!stream) {
+        console.log({ currentStart, currentEnd });
         stream = streamMessages({
           api,
           parsedChannelsByTopic,
           params: { deviceId, start: currentStart, end: currentEnd, topics: args.topics },
         });
       }
+
+      // fixme - produces no messages
+      // and we end up looping again and again until we exhaust
+
       for await (const messages of stream) {
         for (const message of messages) {
           yield { connectionId: undefined, msgEvent: message, problem: undefined };
@@ -192,16 +198,22 @@ export class DataPlatformIterableSource implements IIterableSource {
       }
 
       stream = undefined;
-      if (compare(currentEnd, this._end) >= 0) {
-        break;
-      }
+      // fixme - yield the currentEnd again as an indicator we
+      // are moving to the next "section"
+      // without this our consumer may never stop until all ranges are consumed
 
       // The next stream will start 1 nanosecond after the previous end
       currentStart = add(currentEnd, { sec: 0, nsec: 1 });
+
+      // If the next stream is after our desired end then we have no more stream
+      if (compare(currentStart, end) >= 0) {
+        break;
+      }
+
       currentEnd = clampTime(
         add(currentStart, fromSec(this._requestDurationSecs)),
         this._start,
-        this._end,
+        end,
       );
     }
   }

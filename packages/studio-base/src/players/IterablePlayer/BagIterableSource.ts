@@ -161,6 +161,8 @@ export class BagIterableSource implements IIterableSource {
     });
 
     const readersByConnectionId = this._readersByConnectionId;
+    // fixme - if there are no messages on the topics we will iterate through the entire dataset
+    // and never bail
     for await (const bagMsgEvent of iterator) {
       const connectionId = bagMsgEvent.connectionId;
       const reader = readersByConnectionId.get(connectionId);

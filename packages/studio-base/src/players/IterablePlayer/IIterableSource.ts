@@ -23,6 +23,7 @@ export type Initalization = {
 export type MessageIteratorArgs = {
   topics: string[];
   start?: Time;
+  end?: Time;
 };
 
 export type IteratorResult =

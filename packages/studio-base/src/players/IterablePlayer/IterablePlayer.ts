@@ -259,15 +259,18 @@ export class IterablePlayer implements Player {
 
   private async _stateStartPlay() {
     const allTopics = this._allTopics;
-    this._forwardIterator = this._iterableSource.messageIterator({
-      topics: Array.from(allTopics),
-    });
 
     const stopTime = clampTime(
       add(this._start, fromNanoSec(SEEK_ON_START_NS)),
       this._start,
       this._end,
     );
+
+    this._forwardIterator = this._iterableSource.messageIterator({
+      topics: Array.from(allTopics),
+      start: this._start,
+      end: stopTime,
+    });
 
     this._lastMessage = undefined;
     this._messages = [];
@@ -276,7 +279,16 @@ export class IterablePlayer implements Player {
 
     const messageEvents: MessageEvent<unknown>[] = [];
     for (;;) {
+      // Fixme
+      // If we open a layout that subscribes to topics which don't exist in our data stream
+      // then this never finishes (i.e. it may exhause the entire data stream behind the iterator until
+      // it is done)
+      //
+      // Having an _end_ argument works here but also means that every "tick" during playing
+      // needs a similar "bailout" mechanism to stop making iterators that might iterate the entire
+      // dataset.
       const result = await this._forwardIterator.next();
+
       if (result.done === true) {
         break;
       }
@@ -300,6 +312,13 @@ export class IterablePlayer implements Player {
 
       messageEvents.push(iterResult.msgEvent);
     }
+
+    // Setup a new iterator for playing from 1 nanosecond past the stop time forward
+    const next = add(stopTime, { sec: 0, nsec: 1 });
+    this._forwardIterator = this._iterableSource.messageIterator({
+      topics: Array.from(allTopics),
+      start: next,
+    });
 
     this._currentTime = stopTime;
     this._messages = messageEvents;
@@ -543,6 +562,13 @@ export class IterablePlayer implements Player {
     }
 
     for (;;) {
+      // fixme
+      // Similar to stateStartPlay, this will "hang" until a message comes in. This might be
+      // well after our desired "end" time or not at all if there are no messages for the subscribed
+      // topics across our entire range.
+      //
+      // Maybe a better approach is to use fixed amounts of _time_ to make new iterators
+      // and re-evaluate if we should make another iterator once we've consumed the time from this one
       const result = await this._forwardIterator.next();
       if (result.done === true) {
         break;
