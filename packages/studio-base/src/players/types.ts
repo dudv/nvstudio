@@ -207,9 +207,12 @@ export type Topic = {
   name: string;
   // Name of the datatype (see `type PlayerStateActiveData` for details).
   datatype: string;
-  // The number of messages present on the topic. Valid only for sources with a fixed number of
-  // messages, such as bags.
+  // The number of messages observed on the topic.
   numMessages?: number;
+  // Timestamp of the first observed message on this topic.
+  firstMessageTime?: Time;
+  // Timestamp of the last observed message on this topic.
+  lastMessageTime?: Time;
 };
 
 type RosSingularField = number | string | boolean | RosObject; // No time -- consider it a message.

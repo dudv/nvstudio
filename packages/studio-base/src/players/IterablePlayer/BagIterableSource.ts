@@ -9,7 +9,7 @@ import { BlobReader } from "@foxglove/rosbag/web";
 import { parse as parseMessageDefinition } from "@foxglove/rosmsg";
 import { LazyMessageReader } from "@foxglove/rosmsg-serialization";
 import { compare } from "@foxglove/rostime";
-import { Topic } from "@foxglove/studio";
+import { Topic } from "@foxglove/studio-base/players/types";
 import { PlayerProblem, MessageEvent } from "@foxglove/studio-base/players/types";
 import { RosDatatypes } from "@foxglove/studio-base/types/RosDatatypes";
 import BrowserHttpReader from "@foxglove/studio-base/util/BrowserHttpReader";
@@ -89,6 +89,13 @@ export class BagIterableSource implements IIterableSource {
       });
     }
 
+    const numMessagesByConnectionIndex: number[] = new Array(this._bag.connections.size).fill(0);
+    this._bag.chunkInfos.forEach((info) => {
+      info.connections.forEach(({ conn, count }) => {
+        numMessagesByConnectionIndex[conn] += count;
+      });
+    });
+
     const datatypes: RosDatatypes = new Map();
     const topics = new Map<string, Topic>();
     const publishersByTopic: Initalization["publishersByTopic"] = new Map();
@@ -114,10 +121,17 @@ export class BagIterableSource implements IIterableSource {
         });
       }
 
-      topics.set(connection.topic, {
-        name: connection.topic,
-        datatype,
-      });
+      const numMessages = numMessagesByConnectionIndex[connection.conn] ?? 0;
+      if (existingTopic) {
+        existingTopic.numMessages = (existingTopic.numMessages ?? 0) + numMessages;
+      } else {
+        topics.set(connection.topic, {
+          name: connection.topic,
+          datatype,
+          numMessages,
+        });
+      }
+
       const parsedDefinition = parseMessageDefinition(connection.messageDefinition);
       const reader = new LazyMessageReader(parsedDefinition);
       this._readersByConnectionId.set(id, reader);

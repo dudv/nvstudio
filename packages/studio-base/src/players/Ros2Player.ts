@@ -2,7 +2,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
-import { debounce, isEqual, sortBy } from "lodash";
+import { debounce, sortBy } from "lodash";
 import { v4 as uuidv4 } from "uuid";
 
 import { Sockets } from "@foxglove/electron-socket/renderer";
@@ -11,7 +11,7 @@ import { RosNode } from "@foxglove/ros2";
 import { RosMsgDefinition } from "@foxglove/rosmsg";
 import { definitions as commonDefs } from "@foxglove/rosmsg-msgs-common";
 import { definitions as foxgloveDefs } from "@foxglove/rosmsg-msgs-foxglove";
-import { Time, fromMillis, toSec } from "@foxglove/rostime";
+import { Time, fromMillis, toSec, isGreaterThan } from "@foxglove/rostime";
 import { Durability, Reliability } from "@foxglove/rtps";
 import { ParameterValue } from "@foxglove/studio";
 import OsContextSingleton from "@foxglove/studio-base/OsContextSingleton";
@@ -58,6 +58,7 @@ export default class Ros2Player implements Player {
   private _listener?: (arg0: PlayerState) => Promise<void>; // Listener for _emitState().
   private _closed = false; // Whether the player has been completely closed using close().
   private _providerTopics?: Topic[]; // Topics as advertised by peers
+  private _providerTopicsMap = new Map<string, Topic>(); // topic names to _providerTopics entries.
   private _providerDatatypes = new Map<string, RosMsgDefinition>(); // All known ROS 2 message definitions.
   private _publishedTopics = new Map<string, Set<string>>(); // A map of topic names to the set of publisher IDs publishing each topic.
   private _subscribedTopics = new Map<string, Set<string>>(); // A map of topic names to the set of subscriber IDs subscribed to each topic.
@@ -170,6 +171,18 @@ export default class Ros2Player implements Player {
     }
   }
 
+  private _topicsChanged = (newTopics: Topic[]): boolean => {
+    if (newTopics.length !== this._providerTopicsMap.size) {
+      return true;
+    }
+    for (const newTopic of newTopics) {
+      if (!this._providerTopicsMap.has(newTopic.name)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   private _updateTopics = (): void => {
     if (this._updateTopicsTimeout) {
       clearTimeout(this._updateTopicsTimeout);
@@ -208,8 +221,25 @@ export default class Ros2Player implements Player {
         this._metricsCollector.initialized();
       }
 
-      if (!isEqual(sortedTopics, this._providerTopics)) {
+      if (this._topicsChanged(sortedTopics)) {
+        // Build a new _providerTopicsMap from the new _providerTopics array
+        const providerTopicsMap = new Map<string, Topic>();
+        for (const topic of sortedTopics) {
+          providerTopicsMap.set(topic.name, topic);
+        }
+        // Preserve the message count for existing topics
+        if (this._providerTopics) {
+          for (const prevTopic of this._providerTopics) {
+            const newTopic = providerTopicsMap.get(prevTopic.name);
+            if (newTopic) {
+              newTopic.firstMessageTime = prevTopic.firstMessageTime;
+              newTopic.lastMessageTime = prevTopic.lastMessageTime;
+              newTopic.numMessages = prevTopic.numMessages;
+            }
+          }
+        }
         this._providerTopics = sortedTopics;
+        this._providerTopicsMap = providerTopicsMap;
 
         // Try subscribing again, since we might be able to subscribe to additional topics
         this.setSubscriptions(this._requestedSubscriptions);
@@ -307,7 +337,8 @@ export default class Ros2Player implements Player {
         // We don't support seeking, so we need to set this to any fixed value. Just avoid 0 so
         // that we don't accidentally hit falsy checks.
         lastSeekTime: 1,
-        topics: providerTopics,
+        // Always copy the topic array since message counts and timestamps are being updated
+        topics: providerTopics.slice(0),
         datatypes: this._providerDatatypes,
         publishedTopics: this._publishedTopics,
         subscribedTopics: this._subscribedTopics,
@@ -431,8 +462,14 @@ export default class Ros2Player implements Player {
     // Unsubscribe from topics that we are subscribed to but shouldn't be.
     for (const topicName of this._rosNode.subscriptions.keys()) {
       if (!topicNames.includes(topicName)) {
-        {
-          this._rosNode.unsubscribe(topicName);
+        this._rosNode.unsubscribe(topicName);
+
+        // Reset the message count for this topic
+        const topicInfo = this._providerTopicsMap.get(topicName);
+        if (topicInfo) {
+          topicInfo.firstMessageTime = undefined;
+          topicInfo.lastMessageTime = undefined;
+          topicInfo.numMessages = undefined;
         }
       }
     }
@@ -462,6 +499,18 @@ export default class Ros2Player implements Player {
     const msg: MessageEvent<unknown> = { topic, receiveTime, publishTime, message, sizeInBytes };
     this._parsedMessages.push(msg);
     this._handleInternalMessage(msg);
+
+    // Update the message count for this topic
+    const topicInfo = this._providerTopicsMap.get(topic);
+    if (topicInfo && this._rosNode?.subscriptions.has(topic) === true) {
+      topicInfo.numMessages = (topicInfo.numMessages ?? 0) + 1;
+      topicInfo.firstMessageTime ??= receiveTime;
+      if (topicInfo.lastMessageTime == undefined) {
+        topicInfo.lastMessageTime = receiveTime;
+      } else if (isGreaterThan(receiveTime, topicInfo.lastMessageTime)) {
+        topicInfo.lastMessageTime = receiveTime;
+      }
+    }
 
     this._emitState();
   };

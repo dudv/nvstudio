@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import Log from "@foxglove/log";
 import { parseChannel, ParsedChannel } from "@foxglove/mcap-support";
-import { Time, fromNanoSec, isLessThan } from "@foxglove/rostime";
+import { Time, fromNanoSec, isLessThan, isGreaterThan } from "@foxglove/rostime";
 import PlayerProblemManager from "@foxglove/studio-base/players/PlayerProblemManager";
 import {
   MessageEvent,
@@ -44,6 +44,7 @@ export default class FoxgloveWebSocketPlayer implements Player {
   private _listener?: (arg0: PlayerState) => Promise<void>; // Listener for _emitState().
   private _closed: boolean = false; // Whether the player has been completely closed using close().
   private _topics?: Topic[]; // Topics as published by the WebSocket.
+  private _topicsMap = new Map<string, Topic>(); // Topic names to _topics entries.
   private _datatypes?: RosDatatypes; // Datatypes as published by the WebSocket.
   private _start?: Time; // The time at which we started playing.
   private _parsedMessages: MessageEvent<unknown>[] = []; // Queue of messages that we'll send in next _emitState() call.
@@ -238,6 +239,7 @@ export default class FoxgloveWebSocketPlayer implements Player {
 
       try {
         const receiveTime = fromNanoSec(timestamp);
+        const topic = chanInfo.channel.topic;
         // If time goes backwards, increment lastSeekTime and discard unemitted messages from before
         // the discontinuity. This prevents us from queueing an unbounded number of messages when
         // servers loop over the same recorded data multiple times. However, for now the queue can
@@ -252,11 +254,23 @@ export default class FoxgloveWebSocketPlayer implements Player {
           this._start = receiveTime;
         }
         this._parsedMessages.push({
-          topic: chanInfo.channel.topic,
+          topic,
           receiveTime,
           message: chanInfo.parsedChannel.deserializer(data),
           sizeInBytes: data.byteLength,
         });
+
+        // Update the message count for this topic
+        const topicInfo = this._topicsMap.get(topic);
+        if (topicInfo) {
+          topicInfo.numMessages = (topicInfo.numMessages ?? 0) + 1;
+          topicInfo.firstMessageTime ??= receiveTime;
+          if (topicInfo.lastMessageTime == undefined) {
+            topicInfo.lastMessageTime = receiveTime;
+          } else if (isGreaterThan(receiveTime, topicInfo.lastMessageTime)) {
+            topicInfo.lastMessageTime = receiveTime;
+          }
+        }
       } catch (error) {
         this._problems.addProblem(`message:${chanInfo.channel.topic}`, {
           severity: "error",
@@ -269,10 +283,32 @@ export default class FoxgloveWebSocketPlayer implements Player {
   };
 
   private _updateTopicsAndDatatypes() {
-    this._topics = Array.from(this._channelsById.values(), (chanInfo) => ({
+    // Build a new topics array from this._channelsById
+    const topics = Array.from(this._channelsById.values(), (chanInfo) => ({
       name: chanInfo.channel.topic,
       datatype: chanInfo.parsedChannel.fullSchemaName,
     }));
+
+    // Build a new _topicsMap from the new topics array
+    const topicsMap = new Map<string, Topic>();
+    for (const topic of topics) {
+      topicsMap.set(topic.name, topic);
+    }
+    // Preserve the message count for existing topics
+    if (this._topics) {
+      for (const prevTopic of this._topics) {
+        const newTopic = topicsMap.get(prevTopic.name);
+        if (newTopic) {
+          newTopic.firstMessageTime = prevTopic.firstMessageTime;
+          newTopic.lastMessageTime = prevTopic.lastMessageTime;
+          newTopic.numMessages = prevTopic.numMessages;
+        }
+      }
+    }
+    this._topics = topics;
+    this._topicsMap = topicsMap;
+
+    // Rebuild the _datatypes map
     this._datatypes = new Map();
     for (const { parsedChannel } of this._channelsById.values()) {
       for (const [name, types] of parsedChannel.datatypes) {
@@ -325,7 +361,8 @@ export default class FoxgloveWebSocketPlayer implements Player {
         isPlaying: true,
         speed: 1,
         lastSeekTime: this._lastSeekTime,
-        topics: _topics,
+        // Always copy the topic array since message counts and timestamps are being updated
+        topics: _topics.slice(0),
         datatypes: _datatypes,
       },
     });
@@ -363,6 +400,15 @@ export default class FoxgloveWebSocketPlayer implements Player {
         this._resolvedSubscriptionsByTopic.delete(topic);
         this._resolvedSubscriptionsById.delete(subId);
         this._recentlyCanceledSubscriptions.add(subId);
+
+        // Reset the message count for this topic
+        const topicInfo = this._topicsMap.get(topic);
+        if (topicInfo) {
+          topicInfo.firstMessageTime = undefined;
+          topicInfo.lastMessageTime = undefined;
+          topicInfo.numMessages = undefined;
+        }
+
         setTimeout(
           () => this._recentlyCanceledSubscriptions.delete(subId),
           SUBSCRIPTION_WARNING_SUPPRESSION_MS,

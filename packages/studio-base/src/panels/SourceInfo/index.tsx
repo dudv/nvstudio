@@ -7,8 +7,7 @@ import { Theme } from "@mui/material";
 import { makeStyles } from "@mui/styles";
 import { useCallback, useMemo } from "react";
 
-import { subtract as subtractTimes, toSec } from "@foxglove/rostime";
-import { Topic } from "@foxglove/studio";
+import { areEqual, subtract as subtractTimes, toSec } from "@foxglove/rostime";
 import CopyText from "@foxglove/studio-base/components/CopyText";
 import Duration from "@foxglove/studio-base/components/Duration";
 import EmptyState from "@foxglove/studio-base/components/EmptyState";
@@ -16,6 +15,7 @@ import { useMessagePipeline } from "@foxglove/studio-base/components/MessagePipe
 import Panel from "@foxglove/studio-base/components/Panel";
 import PanelToolbar from "@foxglove/studio-base/components/PanelToolbar";
 import Timestamp from "@foxglove/studio-base/components/Timestamp";
+import { Topic } from "@foxglove/studio-base/src/players/types";
 
 import helpContent from "./index.help.md";
 
@@ -119,7 +119,7 @@ function SourceInfo() {
               isResizable: true,
               data: "string",
               isPadded: true,
-              onRender: (topic) => (
+              onRender: (topic: Topic) => (
                 <CopyText
                   copyText={topic.name}
                   textProps={{ variant: "small" }}
@@ -137,7 +137,7 @@ function SourceInfo() {
               isResizable: true,
               data: "string",
               isPadded: true,
-              onRender: (topic) => (
+              onRender: (topic: Topic) => (
                 <CopyText
                   copyText={topic.datatype}
                   textProps={{ variant: "small" }}
@@ -152,16 +152,29 @@ function SourceInfo() {
               name: "Message count",
               fieldName: "numMessages",
               minWidth: 0,
-              onRender: (topic) => topic.numMessages?.toLocaleString() ?? "–",
+              onRender: (topic: Topic) => topic.numMessages?.toLocaleString() ?? "–",
             },
             {
               key: "frequency",
               name: "Frequency",
               minWidth: 0,
-              onRender: (topic) =>
-                topic.numMessages != undefined
-                  ? `${(topic.numMessages / toSec(duration)).toFixed(2)} Hz`
-                  : "–",
+              onRender: (topic: Topic) => {
+                const { numMessages, firstMessageTime, lastMessageTime } = topic;
+                if (numMessages == undefined) {
+                  // No message count, so no frequency
+                  return "–";
+                }
+                if (firstMessageTime == undefined || lastMessageTime == undefined) {
+                  // Message count but no timestamps, use the full connection duration
+                  return `${(numMessages / toSec(duration)).toFixed(2)} Hz`;
+                }
+                if (numMessages < 2 || areEqual(firstMessageTime, lastMessageTime)) {
+                  // Not enough messages or time span to calculate a frequency
+                  return "–";
+                }
+                const topicDurationSec = toSec(subtractTimes(lastMessageTime, firstMessageTime));
+                return `${((numMessages - 1) / topicDurationSec).toFixed(2)} Hz`;
+              },
             },
           ]}
         />

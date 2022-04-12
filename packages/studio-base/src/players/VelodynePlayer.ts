@@ -31,8 +31,8 @@ export const DEFAULT_VELODYNE_PORT = 2369;
 
 const RPM = 600;
 const PROBLEM_SOCKET_ERROR = "SOCKET_ERROR";
-const TOPIC = "/velodyne_points";
-const TOPICS: Topic[] = [{ name: TOPIC, datatype: "velodyne_msgs/VelodyneScan" }];
+const TOPIC_NAME = "/velodyne_points";
+const TOPIC: Topic = { name: TOPIC_NAME, datatype: "velodyne_msgs/VelodyneScan" };
 const DATATYPES: RosDatatypes = new Map(
   Object.entries({
     "velodyne_msgs/VelodyneScan": {
@@ -74,6 +74,7 @@ export default class VelodynePlayer implements Player {
   private _seq = 0;
   private _totalBytesReceived = 0;
   private _closed: boolean = false; // Whether the player has been completely closed using close()
+  private _topic: Topic = { ...TOPIC }; // The one topic we are "subscribed" to
   private _start: Time; // The time at which we started playing
   private _packets: RawPacket[] = []; // Queue of packets that will form the next parsed message
   private _parsedMessages: MessageEvent<unknown>[] = []; // Queue of messages that we'll send in next _emitState() call
@@ -165,9 +166,14 @@ export default class VelodynePlayer implements Player {
       };
 
       const sizeInBytes = this._packets.reduce((acc, packet) => acc + packet.data.byteLength, 0);
-      const msg: MessageEvent<unknown> = { topic: TOPIC, receiveTime, message, sizeInBytes };
+      const msg: MessageEvent<unknown> = { topic: TOPIC_NAME, receiveTime, message, sizeInBytes };
       this._parsedMessages.push(msg);
       this._packets = [];
+
+      // Update the message count
+      this._topic.numMessages = (this._topic.numMessages ?? 0) + 1;
+      this._topic.firstMessageTime ??= receiveTime;
+      this._topic.lastMessageTime = receiveTime;
 
       this._emitState();
     }
@@ -234,7 +240,7 @@ export default class VelodynePlayer implements Player {
         // We don't support seeking, so we need to set this to any fixed value. Just avoid 0 so
         // that we don't accidentally hit falsy checks.
         lastSeekTime: 1,
-        topics: TOPICS,
+        topics: [this._topic],
         datatypes: DATATYPES,
         publishedTopics: undefined,
         subscribedTopics: undefined,
