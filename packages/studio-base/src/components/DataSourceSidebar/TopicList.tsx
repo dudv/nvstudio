@@ -20,13 +20,14 @@ import {
 import { Fzf, FzfResultItem } from "fzf";
 import { useMemo, useState } from "react";
 
-import { Topic } from "@foxglove/studio";
+import { areEqual, subtract as subtractTimes, Time, toSec } from "@foxglove/rostime";
 import {
   MessagePipelineContext,
   useMessagePipeline,
 } from "@foxglove/studio-base/components/MessagePipeline";
 import Stack from "@foxglove/studio-base/components/Stack";
 import { PlayerPresence } from "@foxglove/studio-base/players/types";
+import { Topic } from "@foxglove/studio-base/src/players/types";
 import { fonts } from "@foxglove/studio-base/util/sharedStyleConstants";
 
 const topicToFzfResult = (item: Topic) =>
@@ -88,32 +89,59 @@ const StyledListItem = muiStyled(ListItem, { skipSx: true })(({ theme }) => ({
   ".MuiListItemSecondaryAction-root": {
     marginRight: theme.spacing(-1),
   },
-  "@media (pointer: fine)": {
-    ".MuiListItemSecondaryAction-root": {
-      visibility: "hidden",
-    },
-    "&:not(.loading):hover": {
-      // paddingRight: theme.spacing(6),
+  // "@media (pointer: fine)": {
+  //   ".MuiListItemSecondaryAction-root": {
+  //     visibility: "hidden",
+  //   },
+  //   "&:not(.loading):hover": {
+  //     // paddingRight: theme.spacing(6),
 
-      ".MuiListItemSecondaryAction-root": {
-        visibility: "visible",
-      },
-    },
-  },
+  //     ".MuiListItemSecondaryAction-root": {
+  //       visibility: "visible",
+  //     },
+  //   },
+  // },
 }));
 
 const EMPTY_TOPICS: Topic[] = [];
 
 const selectPlayerPresence = ({ playerState }: MessagePipelineContext) => playerState.presence;
+const selectStartTime = ({ playerState }: MessagePipelineContext) =>
+  playerState.activeData?.startTime;
+const selectEndTime = ({ playerState }: MessagePipelineContext) => playerState.activeData?.endTime;
 
 const selectTopics = (ctx: MessagePipelineContext) =>
   ctx.playerState.activeData?.topics ?? EMPTY_TOPICS;
+
+const messageFrequency = (topic: Topic, duration: Time) => {
+  const { numMessages, firstMessageTime, lastMessageTime } = topic;
+
+  if (numMessages == undefined) {
+    // No message count, so no frequency
+    return undefined;
+  }
+  if (firstMessageTime == undefined || lastMessageTime == undefined) {
+    // Message count but no timestamps, use the full connection duration
+    return `${(numMessages / toSec(duration)).toFixed(2)} Hz`;
+  }
+  if (numMessages < 2 || areEqual(firstMessageTime, lastMessageTime)) {
+    // Not enough messages or time span to calculate a frequency
+    return undefined;
+  }
+  const topicDurationSec = toSec(subtractTimes(lastMessageTime, firstMessageTime));
+
+  return `${((numMessages - 1) / topicDurationSec).toFixed(2)} Hz`;
+};
 
 export function TopicList(): JSX.Element {
   const [filterText, setFilterText] = useState<string>("");
 
   const playerPresence = useMessagePipeline(selectPlayerPresence);
+  const startTime = useMessagePipeline(selectStartTime);
+  const endTime = useMessagePipeline(selectEndTime);
   const topics = useMessagePipeline(selectTopics);
+
+  const duration = subtractTimes(endTime, startTime);
 
   const filteredTopics: FzfResultItem<Topic>[] = useMemo(
     () =>
@@ -196,27 +224,43 @@ export function TopicList(): JSX.Element {
 
       {filteredTopics.length > 0 ? (
         <List key="topics" dense disablePadding>
-          {filteredTopics.map(({ item, positions }) => (
-            <StyledListItem divider key={item.name}>
-              <ListItemText
-                primary={<HighlightChars str={item.name} indices={positions} />}
-                primaryTypographyProps={{ noWrap: true, title: item.name }}
-                secondary={
-                  <HighlightChars
-                    str={item.datatype}
-                    indices={positions}
-                    offset={item.name.length + 1}
-                  />
+          {filteredTopics.map(({ item, positions }) => {
+            const messageCount = messageFrequency(item, duration);
+
+            return (
+              <StyledListItem
+                divider
+                key={item.name}
+                secondaryAction={
+                  messageCount != undefined && (
+                    <Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        {messageCount}
+                      </Typography>
+                    </Stack>
+                  )
                 }
-                secondaryTypographyProps={{
-                  variant: "caption",
-                  fontFamily: fonts.MONOSPACE,
-                  noWrap: true,
-                  title: item.datatype,
-                }}
-              />
-            </StyledListItem>
-          ))}
+              >
+                <ListItemText
+                  primary={<HighlightChars str={item.name} indices={positions} />}
+                  primaryTypographyProps={{ noWrap: true, title: item.name }}
+                  secondary={
+                    <HighlightChars
+                      str={item.datatype}
+                      indices={positions}
+                      offset={item.name.length + 1}
+                    />
+                  }
+                  secondaryTypographyProps={{
+                    variant: "caption",
+                    fontFamily: fonts.MONOSPACE,
+                    noWrap: true,
+                    title: item.datatype,
+                  }}
+                />
+              </StyledListItem>
+            );
+          })}
         </List>
       ) : (
         <Stack flex="auto" padding={2} fullHeight alignItems="center" justifyContent="center">
