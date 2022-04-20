@@ -142,9 +142,11 @@ addRosDataType(TF_DATATYPES, "tf2_msgs/TFMessage");
 
 export const MARKER_DATATYPES = new Set<string>();
 addRosDataType(MARKER_DATATYPES, "visualization_msgs/Marker");
+addRosDataType(MARKER_DATATYPES, "studio_msgs/Marker");
 
 export const MARKER_ARRAY_DATATYPES = new Set<string>();
 addRosDataType(MARKER_ARRAY_DATATYPES, "visualization_msgs/MarkerArray");
+addRosDataType(MARKER_ARRAY_DATATYPES, "studio_msgs/MarkerArray");
 
 export const OCCUPANCY_GRID_DATATYPES = new Set<string>();
 addRosDataType(OCCUPANCY_GRID_DATATYPES, "nav_msgs/OccupancyGrid");

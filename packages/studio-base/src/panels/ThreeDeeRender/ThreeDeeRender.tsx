@@ -5,6 +5,7 @@
 import css from "@emotion/css";
 import React, { useRef, useLayoutEffect, useEffect, useState, useMemo } from "react";
 import { useResizeDetector } from "react-resize-detector";
+import Stats from "three/examples/jsm/libs/stats.module";
 
 import Logger from "@foxglove/log";
 import { CameraListener, CameraStore, DEFAULT_CAMERA_STATE } from "@foxglove/regl-worldview";
@@ -16,7 +17,6 @@ import { DebugGui } from "./DebugGui";
 import { setOverlayPosition } from "./LabelOverlay";
 import { Renderer } from "./Renderer";
 import { RendererContext, useRenderer, useRendererEvent } from "./RendererContext";
-import { Stats } from "./Stats";
 import {
   TRANSFORM_STAMPED_DATATYPES,
   TF_DATATYPES,
@@ -32,6 +32,8 @@ import {
 
 const SHOW_STATS = true;
 const SHOW_DEBUG = false;
+
+const statsInstance = Stats();
 
 const SUPPORTED_DATATYPES = new Set<string>();
 mergeSetInto(SUPPORTED_DATATYPES, TRANSFORM_STAMPED_DATATYPES);
@@ -62,6 +64,7 @@ function RendererOverlay(props: { colorScheme: "dark" | "light" | undefined }): 
   );
   const [labelsMap, setLabelsMap] = useState(new Map<string, Marker>());
   const labelsRef = useRef<HTMLDivElement>(ReactNull);
+  const statsRef = useRef<HTMLDivElement>(ReactNull);
   const renderer = useRenderer();
 
   useRendererEvent("renderableSelected", (renderable) => setSelectedRenderable(renderable));
@@ -123,6 +126,14 @@ function RendererOverlay(props: { colorScheme: "dark" | "light" | undefined }): 
     return newLabelElements;
   }, [renderer, labelsMap, colorScheme]);
 
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (SHOW_STATS && statsRef.current) {
+      statsRef.current.appendChild(statsInstance.dom);
+      statsInstance.dom.style.position = "absolute";
+    }
+  }, [statsRef]);
+
   const labels = (
     <div id="labels" ref={labelsRef} style={{ position: "absolute", top: 0 }}>
       {labelElements}
@@ -131,9 +142,7 @@ function RendererOverlay(props: { colorScheme: "dark" | "light" | undefined }): 
 
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const stats = SHOW_STATS ? (
-    <div id="stats" style={{ position: "absolute", top: 0 }}>
-      <Stats />
-    </div>
+    <div id="stats" ref={statsRef} style={{ position: "absolute", top: 0, left: 0 }}></div>
   ) : undefined;
 
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -155,7 +164,7 @@ function RendererOverlay(props: { colorScheme: "dark" | "light" | undefined }): 
 export function ThreeDeeRender({ context }: { context: PanelExtensionContext }): JSX.Element {
   const [canvas, setCanvas] = useState<HTMLCanvasElement | ReactNull>(ReactNull);
   const [renderer, setRenderer] = useState<Renderer | ReactNull>(ReactNull);
-  useEffect(() => setRenderer(canvas ? new Renderer(canvas) : ReactNull), [canvas]);
+  useEffect(() => setRenderer(canvas ? new Renderer(canvas, statsInstance) : ReactNull), [canvas]);
 
   const [colorScheme, setColorScheme] = useState<"dark" | "light" | undefined>();
   const [topics, setTopics] = useState<ReadonlyArray<Topic> | undefined>();

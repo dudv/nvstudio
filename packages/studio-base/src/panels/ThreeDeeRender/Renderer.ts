@@ -4,6 +4,7 @@
 
 import EventEmitter from "eventemitter3";
 import * as THREE from "three";
+import Stats from "three/examples/jsm/libs/stats.module";
 
 import Logger from "@foxglove/log";
 import { CameraState } from "@foxglove/regl-worldview";
@@ -89,7 +90,7 @@ export class Renderer extends EventEmitter<RendererEvents> {
   pointClouds = new PointClouds(this);
   markers = new Markers(this);
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, private stats: Stats) {
     super();
 
     // NOTE: Global side effect
@@ -233,6 +234,7 @@ export class Renderer extends EventEmitter<RendererEvents> {
 
   frameHandler = (currentTime: bigint): void => {
     this.emit("startFrame", currentTime, this);
+    this.stats.begin();
 
     // TODO: Remove this hack when the user can set the renderFrameId themselves
     this.fixedFrameId = "map";
@@ -257,6 +259,7 @@ export class Renderer extends EventEmitter<RendererEvents> {
       this.gl.render(this.scene, this.camera);
     }
 
+    this.stats.end();
     this.emit("endFrame", currentTime, this);
 
     this.gl.info.reset();
