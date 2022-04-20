@@ -31,7 +31,15 @@ export class Markers extends THREE.Object3D {
       this.topics.set(topic, topicMarkers);
       this.add(topicMarkers);
     }
-    topicMarkers.addMarkerMessage(marker);
+    // make sure points array is always defined to simplify logic
+    // eslint-disable-next-line
+    const markerWithPoints = marker.points
+      ? marker
+      : {
+          ...marker,
+          points: [],
+        };
+    topicMarkers.addMarkerMessage(markerWithPoints);
   }
 
   startFrame(currentTime: bigint): void {

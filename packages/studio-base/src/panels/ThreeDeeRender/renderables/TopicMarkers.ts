@@ -131,11 +131,6 @@ export class TopicMarkers extends THREE.Object3D {
   }
 
   private _createMarkerRenderable(marker: Marker): RenderableMarker | undefined {
-    // make sure points array is always defined to simplify logic
-    // eslint-disable-next-line
-    if (!marker.points) {
-      marker.points = [];
-    }
     switch (marker.type) {
       case MarkerType.ARROW:
         return new RenderableArrow(this.topic, marker, this.renderer);
