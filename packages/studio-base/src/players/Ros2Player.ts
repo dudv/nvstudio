@@ -324,6 +324,9 @@ export default class Ros2Player implements Player {
       name: "ROS2",
       playerId: this._id,
       problems: this._problems.problems(),
+      urlState: {
+        url: String(this._domainId),
+      },
 
       activeData: {
         messages,

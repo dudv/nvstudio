@@ -659,24 +659,29 @@ export default class RosbridgePlayer implements Player {
       entries.add(value);
     };
 
-    return await new Promise((resolve, reject) => {
+    // Note that we're calling two layers of nested callbacks here so we need to make sure
+    // we wrap each layer in indepedent promises and resolve them all before returning
+    // or we will immediately resolve `output` before it's initialized and downstream
+    // clients will never register the eventual update. This could probably be
+    // simplified with a promisfy utility.
+    return await new Promise((outerResolve, outerReject) => {
       this._rosClient?.getNodes(async (nodes) => {
-        await Promise.all(
-          nodes.map((node) => {
+        for (const node of nodes) {
+          await new Promise((innerResolve, innerReject) => {
             this._rosClient?.getNodeDetails(
               node,
               (subscriptions, publications, services) => {
                 publications.forEach((pub) => addEntry(output.publishers, pub, node));
                 subscriptions.forEach((sub) => addEntry(output.subscribers, sub, node));
                 services.forEach((srv) => addEntry(output.services, srv, node));
+                innerResolve(undefined);
               },
-              reject,
+              innerReject,
             );
-          }),
-        );
-
-        resolve(output);
-      }, reject);
+          });
+        }
+        outerResolve(output);
+      }, outerReject);
     });
   }
 }
