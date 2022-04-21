@@ -17,6 +17,7 @@ import { setOverlayPosition } from "./LabelOverlay";
 import { Renderer } from "./Renderer";
 import { RendererContext, useRenderer, useRendererEvent } from "./RendererContext";
 import { Stats } from "./Stats";
+import { ThreeDeeConfig } from "./index";
 import {
   TRANSFORM_STAMPED_DATATYPES,
   TF_DATATYPES,
@@ -152,10 +153,16 @@ function RendererOverlay(props: { colorScheme: "dark" | "light" | undefined }): 
   );
 }
 
-export function ThreeDeeRender({ context }: { context: PanelExtensionContext }): JSX.Element {
+export function ThreeDeeRender({
+  context,
+  config,
+}: {
+  context: PanelExtensionContext;
+  config: ThreeDeeConfig;
+}): JSX.Element {
   const [canvas, setCanvas] = useState<HTMLCanvasElement | ReactNull>(ReactNull);
   const [renderer, setRenderer] = useState<Renderer | ReactNull>(ReactNull);
-  useEffect(() => setRenderer(canvas ? new Renderer(canvas) : ReactNull), [canvas]);
+  useEffect(() => setRenderer(canvas ? new Renderer(canvas, config) : ReactNull), [canvas, config]);
 
   const [colorScheme, setColorScheme] = useState<"dark" | "light" | undefined>();
   const [topics, setTopics] = useState<ReadonlyArray<Topic> | undefined>();

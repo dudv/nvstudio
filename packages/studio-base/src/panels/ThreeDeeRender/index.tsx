@@ -9,25 +9,29 @@ import { PanelExtensionContext } from "@foxglove/studio";
 import Panel from "@foxglove/studio-base/components/Panel";
 import PanelExtensionAdapter from "@foxglove/studio-base/components/PanelExtensionAdapter";
 import ThemeProvider from "@foxglove/studio-base/theme/ThemeProvider";
-import { SaveConfig } from "@foxglove/studio-base/types/panels";
+import { PanelConfigSchema, SaveConfig } from "@foxglove/studio-base/types/panels";
 
 import { ThreeDeeRender } from "./ThreeDeeRender";
 import helpContent from "./index.help.md";
 
-function initPanel(context: PanelExtensionContext) {
+function initPanel(context: PanelExtensionContext, config: ThreeDeeConfig) {
   ReactDOM.render(
     <StrictMode>
       <ThemeProvider isDark>
-        <ThreeDeeRender context={context} />
+        <ThreeDeeRender context={context} config={config} />
       </ThemeProvider>
     </StrictMode>,
     context.panelElement,
   );
 }
 
+export type ThreeDeeConfig = {
+  customBackgroundColor?: string;
+};
+
 type Props = {
-  config: unknown;
-  saveConfig: SaveConfig<unknown>;
+  config: ThreeDeeConfig;
+  saveConfig: SaveConfig<ThreeDeeConfig>;
 };
 
 function ThreeDeeRenderAdapter(props: Props) {
@@ -36,12 +40,16 @@ function ThreeDeeRenderAdapter(props: Props) {
       config={props.config}
       saveConfig={props.saveConfig}
       help={helpContent}
-      initPanel={initPanel}
+      initPanel={(ctx) => initPanel(ctx, props.config)}
     />
   );
 }
 
+const configSchema: PanelConfigSchema<ThreeDeeConfig> = [
+  { key: "customBackgroundColor", type: "color", title: "Background color" },
+];
 ThreeDeeRenderAdapter.panelType = "3D";
-ThreeDeeRenderAdapter.defaultConfig = {};
+ThreeDeeRenderAdapter.defaultConfig = {} as ThreeDeeConfig;
+ThreeDeeRenderAdapter.configSchema = configSchema;
 
 export default Panel(ThreeDeeRenderAdapter);

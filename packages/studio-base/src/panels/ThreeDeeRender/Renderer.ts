@@ -34,6 +34,10 @@ export type RendererEvents = {
   removeLabel: (labelId: string, renderer: Renderer) => void;
 };
 
+interface ThreeJSRendererOptions {
+  customBackgroundColor?: string;
+}
+
 const DEBUG_PICKING = false;
 
 // NOTE: These do not use .convertSRGBToLinear() since background color is not
@@ -89,7 +93,7 @@ export class Renderer extends EventEmitter<RendererEvents> {
   pointClouds = new PointClouds(this);
   markers = new Markers(this);
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, private options: ThreeJSRendererOptions) {
     super();
 
     // NOTE: Global side effect
@@ -185,15 +189,20 @@ export class Renderer extends EventEmitter<RendererEvents> {
   setColorScheme(colorScheme: "dark" | "light"): void {
     log.debug(`Setting color scheme to "${colorScheme}"`);
     this.colorScheme = colorScheme;
+    let themeBgColor;
     if (colorScheme === "dark") {
-      this.gl.setClearColor(DARK_BACKDROP);
+      themeBgColor = DARK_BACKDROP;
       this.materialCache.outlineMaterial.color.set(DARK_OUTLINE);
       this.materialCache.outlineMaterial.needsUpdate = true;
     } else {
-      this.gl.setClearColor(LIGHT_BACKDROP);
+      themeBgColor = LIGHT_BACKDROP;
       this.materialCache.outlineMaterial.color.set(LIGHT_OUTLINE);
       this.materialCache.outlineMaterial.needsUpdate = true;
     }
+    const bgColor = this.options.customBackgroundColor
+      ? new THREE.Color(this.options.customBackgroundColor)
+      : themeBgColor;
+    this.gl.setClearColor(bgColor);
   }
 
   addTransformMessage(tf: TF): void {
