@@ -2,6 +2,8 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
+import { Object3D } from "three";
+
 import { CameraState, DEFAULT_CAMERA_STATE } from "@foxglove/regl-worldview";
 import { Topic } from "@foxglove/studio";
 import { SettingsTreeNode } from "@foxglove/studio-base/components/SettingsTreeEditor/types";
@@ -12,6 +14,7 @@ export type ThreeDeeRenderConfig = {
   cameraState: CameraState;
   enableStats: boolean;
   followTf?: string;
+  injectObjects?: Map<string, Object3D>;
 };
 
 export function buildSettingsTree(

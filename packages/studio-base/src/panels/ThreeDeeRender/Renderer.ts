@@ -88,6 +88,7 @@ export class Renderer extends EventEmitter<RendererEvents> {
   occupancyGrids = new OccupancyGrids(this);
   pointClouds = new PointClouds(this);
   markers = new Markers(this);
+  injectedObjectsByName = new Map<string, THREE.Object3D>();
 
   constructor(canvas: HTMLCanvasElement) {
     super();
@@ -344,6 +345,32 @@ export class Renderer extends EventEmitter<RendererEvents> {
       this.animationFrame();
     }
   };
+
+  /** Wraps each of the provided three.js objects with a parent object and adds it to the scene */
+  injectObjects(objectMap: Renderer["injectedObjectsByName"]): void {
+    const namesToUpdate = new Set(this.injectedObjectsByName.keys());
+    objectMap.forEach((obj, name) => {
+      this._injectObject(name, obj);
+      namesToUpdate.delete(name);
+    });
+    // if the object is no longer in the map, it needs to be removed
+    namesToUpdate.forEach((name) => {
+      const obj = this.injectedObjectsByName.get(name)!;
+      this.injectedObjectsByName.delete(name);
+      this.scene.remove(obj);
+    });
+    this.animationFrame();
+  }
+
+  private _injectObject(name: string, obj: THREE.Object3D) {
+    let parent = this.injectedObjectsByName.get(name);
+    if (!parent) {
+      parent = new THREE.Group();
+      parent.name = name;
+      this.scene.add(parent);
+    }
+    parent.add(obj);
+  }
 
   private _updateFrames(): void {
     const frameId = this.renderFrameId;

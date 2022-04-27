@@ -2,6 +2,8 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
+import * as THREE from "three";
+
 import { MessageEvent, Topic } from "@foxglove/studio";
 import useDelayedFixture from "@foxglove/studio-base/panels/ThreeDimensionalViz/stories/useDelayedFixture";
 import PanelSetup from "@foxglove/studio-base/stories/PanelSetup";
@@ -552,6 +554,80 @@ export function ArrowMarkers(): JSX.Element {
             target: [0, 0, 0],
             targetOrientation: [0, 0, 0, 1],
           },
+        }}
+      />
+    </PanelSetup>
+  );
+}
+
+CustomObjects.parameters = { colorScheme: "dark" };
+export function CustomObjects(): JSX.Element {
+  const topics: Topic[] = [{ name: "/tf", datatype: "geometry_msgs/TransformStamped" }];
+
+  const tf1: MessageEvent<TF> = {
+    topic: "/tf",
+    receiveTime: { sec: 10, nsec: 0 },
+    message: {
+      header: { seq: 0, stamp: { sec: 0, nsec: 0 }, frame_id: FIXED_FRAME_ID },
+      child_frame_id: SENSOR_FRAME_ID,
+      transform: {
+        translation: { x: 1e7, y: 0, z: 0 },
+        rotation: QUAT_IDENTITY,
+      },
+    },
+    sizeInBytes: 0,
+  };
+
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 32, 16),
+    new THREE.MeshStandardMaterial({ color: "white" }),
+  );
+  sphere.name = "sphere";
+  sphere.position.addScalar(1);
+  const cube = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x00ff00 }),
+  );
+  cube.name = "nested_cube";
+  cube.position.addScalar(2);
+
+  sphere.add(cube);
+  const injectObjects = new Map<string, THREE.Object3D>([
+    ["primitives", sphere],
+    ["light", new THREE.PointLight("blue")],
+  ]);
+
+  const fixture = useDelayedFixture({
+    topics,
+    frame: {
+      "/tf": [tf1],
+    },
+    capabilities: [],
+    activeData: {
+      currentTime: { sec: 0, nsec: 0 },
+    },
+  });
+
+  return (
+    <PanelSetup fixture={fixture}>
+      <ThreeDeeRender
+        overrideConfig={{
+          ...ThreeDeeRender.defaultConfig,
+          enableStats: false,
+          followTf: SENSOR_FRAME_ID,
+          cameraState: {
+            distance: 4,
+            perspective: true,
+            phi: 1,
+            targetOffset: [-0.6, 0.5, 0],
+            thetaOffset: -1,
+            fovy: 0.75,
+            near: 0.01,
+            far: 5000,
+            target: [0, 0, 0],
+            targetOrientation: [0, 0, 0, 1],
+          },
+          injectObjects,
         }}
       />
     </PanelSetup>

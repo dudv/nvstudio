@@ -179,9 +179,10 @@ export function ThreeDeeRender({ context }: { context: PanelExtensionContext }):
       cameraState,
       enableStats: partialConfig?.enableStats ?? true,
       followTf: partialConfig?.followTf,
+      injectObjects: partialConfig?.injectObjects as ThreeDeeRenderConfig["injectObjects"],
     };
   });
-  const { cameraState, followTf } = config;
+  const { cameraState, followTf, injectObjects } = config;
 
   const [canvas, setCanvas] = useState<HTMLCanvasElement | ReactNull>(ReactNull);
   const [renderer, setRenderer] = useState<Renderer | ReactNull>(ReactNull);
@@ -222,6 +223,13 @@ export function ThreeDeeRender({ context }: { context: PanelExtensionContext }):
       renderer.renderFrameId = followTf;
     }
   }, [followTf, renderer]);
+
+  // Config injectObjects
+  useEffect(() => {
+    if (injectObjects && renderer) {
+      renderer.injectObjects(injectObjects);
+    }
+  }, [injectObjects, renderer]);
 
   // Save panel settings whenever they change
   const throttledSave = useDebouncedCallback(
