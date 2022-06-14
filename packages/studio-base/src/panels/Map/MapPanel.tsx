@@ -77,6 +77,7 @@ function MapPanel(props: MapPanelProps): JSX.Element {
     initialConfig.disabledTopics = initialConfig.disabledTopics ?? [];
     initialConfig.layer = initialConfig.layer ?? "map";
     initialConfig.customTileUrl = initialConfig.customTileUrl ?? "";
+    initialConfig.followGPS = initialConfig.followGPS ?? false;
     return initialConfig as Config;
   });
 
@@ -183,6 +184,12 @@ function MapPanel(props: MapPanelProps): JSX.Element {
     if (path[1] === "customTileUrl" && input === "string") {
       setConfig((oldConfig) => {
         return { ...oldConfig, customTileUrl: String(value) };
+      });
+    }
+
+    if (path[1] === "followGPS" && input === "toggle") {
+      setConfig((oldConfig) => {
+        return { ...oldConfig, followGPS: Boolean(value) };
       });
     }
   }, []);
@@ -367,9 +374,11 @@ function MapPanel(props: MapPanelProps): JSX.Element {
   // calculate center point from blocks if we don't have a center point
   useEffect(() => {
     setCenter((old) => {
-      // set center only once
-      if (old) {
-        return old;
+      if (!config.followGPS) {
+        // set center only once
+        if (old) {
+          return old;
+        }
       }
 
       for (const messages of [currentNavMessages, allNavMessages]) {
@@ -383,7 +392,7 @@ function MapPanel(props: MapPanelProps): JSX.Element {
 
       return;
     });
-  }, [allNavMessages, currentNavMessages]);
+  }, [allNavMessages, currentNavMessages, config]);
 
   useEffect(() => {
     if (!currentMap) {
@@ -555,14 +564,19 @@ function MapPanel(props: MapPanelProps): JSX.Element {
     };
   }, [currentMap, moveHandler]);
 
+  const [resetZoom, setResetZoom] = useState(true);
+
   // Update the map view when centerpoint changes
   useEffect(() => {
     if (!center) {
       return;
     }
 
-    currentMap?.setView([center.lat, center.lon], config.zoomLevel ?? 10);
-  }, [center, config.zoomLevel, currentMap]);
+    // Only reset zoom once
+    const zoom = resetZoom ? config.zoomLevel ?? 10 : currentMap?.getZoom();
+    currentMap?.setView([center.lat, center.lon], zoom);
+    setResetZoom(false);
+  }, [center, config.zoomLevel, currentMap, resetZoom]);
 
   // Indicate render is complete - the effect runs after the dom is updated
   useEffect(() => {

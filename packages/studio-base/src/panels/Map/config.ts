@@ -15,6 +15,7 @@ export type Config = {
   disabledTopics: string[];
   layer: string;
   zoomLevel?: number;
+  followGPS: boolean;
 };
 
 export function validateCustomUrl(url: string): Error | undefined {
@@ -52,6 +53,12 @@ export function buildSettingsTree(config: Config, eligibleTopics: string[]): Set
         { label: "Satellite", value: "satellite" },
         { label: "Custom", value: "custom" },
       ],
+    },
+    followGPS: {
+      label: "Follow GPS",
+      input: "toggle",
+      value: config.followGPS ? "On" : "Off",
+      options: ["On", "Off"],
     },
   };
 
