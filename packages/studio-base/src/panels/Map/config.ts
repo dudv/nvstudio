@@ -15,7 +15,7 @@ export type Config = {
   disabledTopics: string[];
   layer: string;
   zoomLevel?: number;
-  followGPS: boolean;
+  followTopic: string;
 };
 
 export function validateCustomUrl(url: string): Error | undefined {
@@ -43,6 +43,12 @@ export function buildSettingsTree(config: Config, eligibleTopics: string[]): Set
     {} as SettingsTreeFields,
   );
 
+  const followTopics = [
+    { label: "Off", value: "" },
+    ...eligibleTopics
+      .filter((topic) => !config.disabledTopics.includes(topic))
+      .map((topic) => ({ label: topic, value: topic })),
+  ];
   const generalSettings: SettingsTreeFields = {
     layer: {
       label: "Tile Layer",
@@ -54,11 +60,11 @@ export function buildSettingsTree(config: Config, eligibleTopics: string[]): Set
         { label: "Custom", value: "custom" },
       ],
     },
-    followGPS: {
-      label: "Follow GPS",
-      input: "toggle",
-      value: config.followGPS ? "On" : "Off",
-      options: ["On", "Off"],
+    followTopic: {
+      label: "Follow topic",
+      input: "select",
+      value: config.followTopic,
+      options: followTopics,
     },
   };
 

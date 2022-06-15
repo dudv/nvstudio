@@ -77,7 +77,7 @@ function MapPanel(props: MapPanelProps): JSX.Element {
     initialConfig.disabledTopics = initialConfig.disabledTopics ?? [];
     initialConfig.layer = initialConfig.layer ?? "map";
     initialConfig.customTileUrl = initialConfig.customTileUrl ?? "";
-    initialConfig.followGPS = initialConfig.followGPS ?? false;
+    initialConfig.followTopic = initialConfig.followTopic ?? "";
     return initialConfig as Config;
   });
 
@@ -187,9 +187,9 @@ function MapPanel(props: MapPanelProps): JSX.Element {
       });
     }
 
-    if (path[1] === "followGPS" && input === "toggle") {
+    if (path[1] === "followTopic" && input === "select") {
       setConfig((oldConfig) => {
-        return { ...oldConfig, followGPS: Boolean(value) };
+        return { ...oldConfig, followTopic: String(value) };
       });
     }
   }, []);
@@ -374,7 +374,7 @@ function MapPanel(props: MapPanelProps): JSX.Element {
   // calculate center point from blocks if we don't have a center point
   useEffect(() => {
     setCenter((old) => {
-      if (!config.followGPS) {
+      if (!config.followTopic) {
         // set center only once
         if (old) {
           return old;
@@ -383,6 +383,12 @@ function MapPanel(props: MapPanelProps): JSX.Element {
 
       for (const messages of [currentNavMessages, allNavMessages]) {
         for (const message of messages) {
+          // When re-centering to follow topic, only use the messages of the matching topic
+          if (config.followTopic && old) {
+            if (message.topic !== config.followTopic) {
+              continue;
+            }
+          }
           return {
             lat: message.message.latitude,
             lon: message.message.longitude,
