@@ -569,9 +569,9 @@ export function ThreeDeeRender({ context }: { context: PanelExtensionContext }):
       } else if (
         // prettier-ignore
         (topicHandlers.get(topic.name)?.length ?? 0) +
-        (datatypeHandlers.get(topic.datatype)?.length ?? 0) > 1
+        (datatypeHandlers.get(topic.datatype)?.length ?? 0) > 0
       ) {
-        // Subscribe if there are multiple handlers registered for this topic
+        // Subscribe if there are handlers registered for this topic
         subscriptions.add(topic.name);
       }
     }
