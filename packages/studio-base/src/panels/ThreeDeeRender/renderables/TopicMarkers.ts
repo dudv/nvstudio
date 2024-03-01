@@ -165,6 +165,13 @@ export class TopicMarkers extends Renderable<MarkerTopicUserData> {
       renderable = undefined;
     }
 
+    const nsSettings = (this.renderer.config.topics[this.topic] as LayerSettingsMarker).namespaces[
+      marker.ns
+    ];
+    if (nsSettings?.visible === false) {
+      return;
+    }
+
     if (!renderable) {
       renderable = this.#createMarkerRenderable(marker, receiveTime);
       if (!renderable) {
