@@ -166,9 +166,8 @@ export class TopicMarkers extends Renderable<MarkerTopicUserData> {
     }
 
     const topicSettings = this.renderer.config.topics[this.topic] as
-      | LayerSettingsMarker
+      | Partial<LayerSettingsMarker>
       | undefined;
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     const nsSettings = topicSettings?.namespaces?.[marker.ns];
     if (nsSettings?.visible === false) {
       return;
